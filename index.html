@@ -471,11 +471,27 @@ function setField(idx, field, val) {
 
 async function submitSession(idx) {
   const fb = progress.feedback[idx] || {};
+  const s = SESSIONS[idx];
+
   if (!fb.done) { alert('Отметьте, выполнено ли занятие'); return; }
+
+  const missingDiff = [];
+  s.exercises.forEach((ex, ei) => {
+    const exFb = (fb.exercises || {})[ei] || {};
+    if (!exFb.diff) missingDiff.push(ex.name);
+  });
+  if (missingDiff.length > 0) {
+    alert('Пожалуйста, оцените сложность для каждого упражнения:\n\n' + missingDiff.join('\n'));
+    return;
+  }
+
+  if (!fb.time || String(fb.time).trim() === '') {
+    alert('Пожалуйста, укажите сколько минут заняло занятие');
+    return;
+  }
+
   const sending = document.getElementById('sending-' + idx);
   sending.classList.add('visible');
-
-  const s = SESSIONS[idx];
   const rows = s.exercises.map((ex, ei) => {
     const exFb = (fb.exercises || {})[ei] || {};
     return {
