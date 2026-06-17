@@ -481,15 +481,18 @@ async function submitSession(idx) {
     return {
       code: currentUser, name: CODES[currentUser], session: s.title,
       exercise: ex.name, difficulty: exFb.diff || '',
-      done: fb.done ? 'да' : 'нет', time: fb.time || '', comment: fb.comment || ''
+      done: fb.done ? 'да' : 'нет',
+      time: ei === 0 ? (fb.time || '') : '',
+      comment: ei === 0 ? (fb.comment || '') : ''
     };
   });
 
-  try {
-    await Promise.all(rows.map(row =>
-      fetch(SHEETS_URL, { method: 'POST', mode: 'no-cors', headers: {'Content-Type':'application/json'}, body: JSON.stringify(row) })
-    ));
-  } catch(e) {}
+  for (const row of rows) {
+    try {
+      await fetch(SHEETS_URL, { method: 'POST', mode: 'no-cors', headers: {'Content-Type':'application/json'}, body: JSON.stringify(row) });
+      await new Promise(r => setTimeout(r, 350));
+    } catch(e) {}
+  }
 
   if (!progress.completed.includes(idx)) progress.completed.push(idx);
   saveProgress();
