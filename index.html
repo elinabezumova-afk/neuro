@@ -548,6 +548,9 @@ async function submitSession(idx) {
 
   const sending = document.getElementById('sending-' + idx);
   sending.classList.add('visible');
+  // Disable submit button to prevent double submission
+  const submitBtn = document.querySelector(`[onclick="submitSession(${idx})"]`);
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.style.opacity = '0.5'; }
   const rows = s.exercises.map((ex, ei) => {
     const exFb = (fb.exercises || {})[ei] || {};
     return {
