@@ -320,6 +320,59 @@ function renderSessions() {
   });
 }
 
+function buildBody(idx, s, isDone) {
+  const fb = progress.feedback[idx] || {};
+  const legend = `<div class="scale-legend">
+    <strong>Как оценивать выполнение:</strong><br>
+    <strong>Легко</strong> — справился с первого раза, без помощи и быстро<br>
+    <strong>Нормально</strong> — потребовалась небольшая помощь, были незначительные ошибки или неточности<br>
+    <strong>Трудно</strong> — для выполнения требовалась развёрнутая помощь взрослого
+  </div>`;
+
+  const exHTML = s.exercises.map((ex, ei) => {
+    const exFb = (fb.exercises || {})[ei] || {};
+    const pills = ['легко','нормально','трудно'].map(d => {
+      const sel = exFb.diff === d ? (d==='легко'?'sel-easy':d==='нормально'?'sel-ok':'sel-hard') : '';
+      return `<button class="pill ${sel}" onclick="setExPill(${idx},${ei},'${d}',this)">${d}</button>`;
+    }).join('');
+    const stim = ex.stimulus ? `<div class="stimulus">${buildStimulus(idx, ei, ex.stimulus)}</div>` : '';
+    return `<div class="exercise">
+      <div class="ex-name">${ex.name}</div>
+      <div class="ex-time">${ex.time}</div>
+      <div class="ex-desc">${ex.desc}</div>
+      ${ex.harder ? `<div class="ex-harder">${ex.harder}</div>` : ''}
+      ${stim}
+      <div class="ex-feedback">
+        <div class="ex-feedback-label">Как прошло это упражнение?</div>
+        <div class="pill-group" id="expills-${idx}-${ei}">${pills}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+    ${s.req ? `<div class="req-box">${s.req}</div>` : ''}
+    ${legend}
+    ${exHTML}
+    <div class="feedback-section">
+      <label class="done-check">
+        <input type="checkbox" id="done-${idx}" ${fb.done?'checked':''} onchange="setDone(${idx},this.checked)">
+        Занятие выполнено полностью
+      </label>
+      <div class="time-row">
+        <label class="feedback-label" style="margin:0">Сколько минут заняло:</label>
+        <input type="number" min="1" max="60" placeholder="15" value="${fb.time||''}" oninput="setField(${idx},'time',this.value)">
+      </div>
+      <div class="feedback-label">С какими трудностями столкнулись?</div>
+      <textarea class="comment-area" placeholder="Необязательно..." oninput="setField(${idx},'comment',this.value)">${fb.comment||''}</textarea>
+      <div class="submit-row">
+        <button class="btn-sm" onclick="submitSession(${idx})">Сохранить и завершить занятие</button>
+        <span class="sending-msg" id="sending-${idx}">Отправляем...</span>
+        <span class="submit-msg ${isDone?'visible':''}" id="msg-${idx}">Сохранено!</span>
+      </div>
+    </div>`;
+}
+
+
 function buildStimulus(idx, ei, type) {
   if (type && type.startsWith('maze_')) {
     const mazeData = {
