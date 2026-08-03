@@ -416,6 +416,43 @@ function buildStimulus(idx, ei, type) {
   return '';
 }
 
+function toggleSession(i) {
+  document.getElementById('body-' + i).classList.toggle('open');
+}
+
+function handlePicClick(idx, ei, ti, ii, el) {
+  const key = `pic-${idx}-${ei}-${ti}`;
+  if (!progress.feedback[idx]) progress.feedback[idx] = {};
+  if (!progress.feedback[idx].pics) progress.feedback[idx].pics = {};
+  const state = progress.feedback[idx].pics[key] || { selected: [], done: false };
+  if (state.done) return;
+  const idxIn = state.selected.indexOf(ii);
+  const wrap = document.getElementById(`picwrap-${idx}-${ei}-${ti}`);
+  const cells = wrap.querySelectorAll('.pic-cell');
+  if (idxIn >= 0) { state.selected.splice(idxIn,1); el.classList.remove('selected'); progress.feedback[idx].pics[key]=state; saveProgress(); return; }
+  state.selected.push(ii);
+  el.classList.add('selected');
+  if (state.selected.length === 2) {
+    const [a,b] = state.selected;
+    const task = PIC_MATCH_TASKS[ti];
+    const fb = document.getElementById(`picfb-${idx}-${ei}-${ti}`);
+    if (task.answer.includes(a) && task.answer.includes(b)) {
+      state.done = true;
+      cells[a].classList.remove('selected'); cells[b].classList.remove('selected');
+      cells[a].classList.add('correct'); cells[b].classList.add('correct');
+      fb.textContent = 'Правильно!'; fb.className = 'pic-fb ok';
+    } else {
+      cells[a].classList.add('wrong'); cells[b].classList.add('wrong');
+      fb.textContent = 'Не совсем — попробуйте ещё раз'; fb.className = 'pic-fb no';
+      state.selected = [];
+      setTimeout(()=>{ cells[a].classList.remove('wrong','selected'); cells[b].classList.remove('wrong','selected'); fb.textContent=''; fb.className='pic-fb'; }, 900);
+    }
+  }
+  progress.feedback[idx].pics[key] = state;
+  saveProgress();
+}
+
+
 function handleMatchClick(idx, ei, ti, letter, el) {
   const key = `match-${idx}-${ei}-${ti}`;
   if (!progress.feedback[idx]) progress.feedback[idx] = {};
