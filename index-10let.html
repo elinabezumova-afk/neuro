@@ -73,7 +73,7 @@
   .badge-locked { background: #F0EEE8; color: #999; }
   .badge-open { background: #E1F5EE; color: #0F6E56; }
   .badge-done { background: #EAF3DE; color: #3B6D11; }
-  .session-body { padding: 0 18px 20px; border-top: 1px solid #EEEDE7; display: none; }
+  .session-body { padding: 16px 18px 20px; border-top: 1px solid #EEEDE7; display: none; }
   .session-body.open { display: block; }
 
   .req-box {
@@ -299,11 +299,6 @@ function buildBody(idx, s, isDone) {
     <strong>Уровень контроля выполнения заданий взрослым:</strong><br>
     <strong>Непосредственный контроль</strong> — говорим сразу при совершении ошибки<br>
     <strong>Отсроченный контроль</strong> — даём время ребёнку заметить ошибку самостоятельно, указываем на ошибку только в случае её повторения или если ребёнок не исправился сам
-  </div>
-    <strong>Как оценивать выполнение:</strong><br>
-    <strong>Легко</strong> — справился с первого раза, без помощи и быстро<br>
-    <strong>Нормально</strong> — потребовалась небольшая помощь, были незначительные ошибки или неточности<br>
-    <strong>Трудно</strong> — для выполнения требовалась развёрнутая помощь взрослого
   </div>`;
 
   const exHTML = s.exercises.map((ex, ei) => {
@@ -327,7 +322,7 @@ function buildBody(idx, s, isDone) {
   }).join('');
 
   return `
-    ${s.req ? `<div class="req-box">${s.req}</div>` : ''}
+    ${s.req ? '<div class="req-box">' + s.req + '</div>' : ''}
     ${legend}
     ${exHTML}
     <div class="feedback-section">
