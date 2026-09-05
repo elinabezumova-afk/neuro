@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Семинары для родителей</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAF8F3;
+    --paper: #F3EFE4;
+    --ink: #2B2B24;
+    --ink-soft: #59564A;
+    --forest: #33493F;
+    --forest-deep: #223832;
+    --ochre: #B8843D;
+    --ochre-deep: #9A6C2C;
+    --sand: #EFE3CC;
+    --line: #DCD6C4;
+    --radius: 4px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  h1, h2, h3 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    color: var(--forest-deep);
+    margin: 0 0 0.4em 0;
+  }
+
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  section {
+    padding: 48px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  section:last-of-type { border-bottom: none; }
+
+  .placeholder {
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+
+  /* ===== СЕМИНАР — аккордеон, первым блоком ===== */
+  .seminars-section { padding-top: 40px; padding-bottom: 4px; border-bottom: none; }
+
+  details.seminars-panel {
+    background: #F1BFB4;
+    color: #5C332B;
+    border-radius: 20px;
+    overflow: hidden;
+  }
+
+  details.seminars-panel summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 26px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  details.seminars-panel summary::-webkit-details-marker { display: none; }
+
+  .summary-label {
+    font-family: 'Fraunces', serif;
+    font-size: 20px;
+    color: #4A2A22;
+  }
+  .summary-cta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #7A3B33;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .chevron {
+    display: inline-block;
+    transition: transform 0.2s ease;
+    font-size: 16px;
+  }
+  details[open] .chevron { transform: rotate(180deg); }
+
+  .seminars-body {
+    padding: 0 28px 40px;
+  }
+  .seminars-body .sub {
+    color: #8B5C51;
+    max-width: 48ch;
+    margin-bottom: 24px;
+  }
+
+  .waitlist-form {
+    margin-top: 32px;
+    padding-top: 28px;
+    border-top: 1px solid rgba(92,51,43,0.18);
+  }
+  .waitlist-form h3 {
+    color: #4A2A22;
+    font-size: 18px;
+    margin-bottom: 6px;
+  }
+  .waitlist-form p {
+    color: #8B5C51;
+    font-size: 14px;
+    margin-bottom: 18px;
+  }
+  .form-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .form-row input[type="text"],
+  .form-row input[type="email"],
+  .form-row input[type="tel"] {
+    flex: 1;
+    min-width: 220px;
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    border: 1px solid rgba(92,51,43,0.3);
+    background: rgba(255,255,255,0.45);
+    color: #4A2A22;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+  }
+  .form-row input::placeholder { color: #A87D71; }
+
+  .contact-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .toggle-option {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(92,51,43,0.3);
+    font-size: 13px;
+    color: #7A3B33;
+    cursor: pointer;
+  }
+  .toggle-option input {
+    position: absolute;
+    opacity: 0;
+  }
+  .toggle-option:has(input:checked) {
+    background: #3057A5;
+    border-color: #3057A5;
+    color: #F8F6EE;
+  }
+
+  .checkbox-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 18px;
+    font-size: 13px;
+    color: #8B5C51;
+  }
+  .checkbox-row input { margin-top: 3px; }
+
+  .submit-btn {
+    display: inline-block;
+    background: #3057A5;
+    color: #F8F6EE;
+    border: none;
+    padding: 13px 26px;
+    border-radius: 999px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .submit-btn:hover { background: #244478; }
+
+  /* ===== О НАС / ЗАПРОСЫ — два отдельных блока рядом, один на человека ===== */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-top: 24px;
+  }
+
+  .person-photo {
+    width: 96px;
+    height: 96px;
+    border-radius: var(--radius);
+    background: var(--paper);
+    border: 1px dashed var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-soft);
+    font-size: 12px;
+    font-style: italic;
+    margin-bottom: 14px;
+  }
+  .person-name {
+    font-family: 'Fraunces', serif;
+    font-size: 17px;
+    color: var(--forest-deep);
+    margin-bottom: 4px;
+  }
+  .person-role {
+    font-size: 13px;
+    color: var(--ochre-deep);
+    margin-bottom: 10px;
+  }
+  .two-col p {
+    font-size: 14px;
+    color: var(--ink-soft);
+  }
+
+  /* ===== ГДЕ МЫ РАБОТАЕМ ===== */
+  .location-card {
+    display: flex;
+    gap: 20px;
+    align-items: stretch;
+    margin-top: 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--paper);
+  }
+  .location-map {
+    flex: 0 0 42%;
+    background: repeating-linear-gradient(
+      45deg,
+      rgba(51,73,63,0.08),
+      rgba(51,73,63,0.08) 10px,
+      rgba(51,73,63,0.03) 10px,
+      rgba(51,73,63,0.03) 20px
+    );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--forest-deep);
+    font-size: 13px;
+    font-style: italic;
+    text-align: center;
+    padding: 16px;
+    min-height: 160px;
+  }
+  .location-info {
+    flex: 1;
+    padding: 20px;
+  }
+  .location-info .addr {
+    font-family: 'Fraunces', serif;
+    font-size: 17px;
+    color: var(--forest-deep);
+    margin-bottom: 6px;
+  }
+  .location-link {
+    display: inline-block;
+    margin-top: 12px;
+    font-size: 14px;
+    color: var(--forest-deep);
+    text-decoration: none;
+    border-bottom: 1px solid var(--forest-deep);
+  }
+  .location-link:hover { color: var(--ochre-deep); border-color: var(--ochre-deep); }
+
+  footer {
+    text-align: center;
+    padding: 32px 0 48px;
+    color: var(--ink-soft);
+    font-size: 12px;
+  }
+
+  @media (max-width: 620px) {
+    .wrap { padding: 0 16px; }
+    .two-col { gap: 14px; }
+    .person-photo { width: 100%; height: auto; aspect-ratio: 1/1; font-size: 11px; margin-bottom: 8px; }
+    .person-name { font-size: 14px; }
+    .person-role { font-size: 11px; margin-bottom: 6px; }
+    .two-col p { font-size: 12px; line-height: 1.45; }
+    .location-card { flex-direction: column; }
+    .location-map { min-height: 120px; }
+    details.seminars-panel summary { padding: 20px; }
+    .seminars-body { padding: 0 20px 32px; }
+    .summary-label { font-size: 17px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- СЕМИНАР — первым блоком, раскрывающийся -->
+  <section class="seminars-section">
+    <details class="seminars-panel">
+      <summary>
+        <div class="summary-label">Семинар для родителей</div>
+        <div class="summary-cta">Узнать больше <span class="chevron">⌄</span></div>
+      </summary>
+      <div class="seminars-body">
+        <p class="sub placeholder">здесь будет текст — общая информация о цикле: для кого, формат, чем полезен, что даёт участие</p>
+
+        <div class="waitlist-form">
+          <h3>Записаться в лист ожидания</h3>
+          <p>Оставьте email — сообщим, когда откроется запись на ближайший семинар</p>
+          <form id="waitlist-form">
+            <div class="form-row">
+              <input type="text" name="name" placeholder="Ваше имя" required>
+            </div>
+
+            <div class="contact-toggle">
+              <label class="toggle-option">
+                <input type="radio" name="contact-method" value="email" checked>
+                <span>Email</span>
+              </label>
+              <label class="toggle-option">
+                <input type="radio" name="contact-method" value="phone">
+                <span>Телефон</span>
+              </label>
+            </div>
+            <div class="form-row">
+              <input type="text" id="contact-input" name="contact" placeholder="Ваш email" required>
+            </div>
+
+            <div class="form-row">
+              <input type="text" name="child-age" placeholder="Возраст ребёнка" required>
+            </div>
+
+            <div class="checkbox-row">
+              <input type="checkbox" id="consent" required>
+              <label for="consent">Согласен(на) на обработку данных и получение приглашения на семинары</label>
+            </div>
+            <button type="submit" class="submit-btn">Записаться в лист ожидания</button>
+          </form>
+
+          <script>
+            document.querySelectorAll('input[name="contact-method"]').forEach(function (radio) {
+              radio.addEventListener('change', function () {
+                var input = document.getElementById('contact-input');
+                if (this.value === 'email') {
+                  input.type = 'email';
+                  input.placeholder = 'Ваш email';
+                } else {
+                  input.type = 'tel';
+                  input.placeholder = 'Ваш телефон';
+                }
+              });
+            });
+          </script>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- О НАС -->
+  <section class="about">
+    <h2>О нас</h2>
+
+    <div class="two-col">
+      <div>
+        <div class="person-photo">фото первого специалиста</div>
+        <div class="person-name">Имя Фамилия</div>
+        <div class="person-role placeholder">роль / специализация</div>
+        <p class="placeholder">здесь будет текст про первого специалиста. здесь будет текст про первого специалиста. здесь будет текст про первого специалиста.</p>
+      </div>
+      <div>
+        <div class="person-photo">фото второго специалиста</div>
+        <div class="person-name">Имя Фамилия</div>
+        <div class="person-role placeholder">роль / специализация</div>
+        <p class="placeholder">здесь будет текст про второго специалиста. здесь будет текст про второго специалиста. здесь будет текст про второго специалиста.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- С КАКИМИ ЗАПРОСАМИ РАБОТАЕМ -->
+  <section class="requests-section">
+    <h2>С какими запросами мы работаем</h2>
+
+    <div class="two-col">
+      <div>
+        <div class="person-name">Имя первого специалиста</div>
+        <p class="placeholder">здесь будет текст про запросы первого специалиста. здесь будет текст. здесь будет текст.</p>
+      </div>
+      <div>
+        <div class="person-name">Имя второго специалиста</div>
+        <p class="placeholder">здесь будет текст про запросы второго специалиста. здесь будет текст. здесь будет текст.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ГДЕ МЫ РАБОТАЕМ -->
+  <section class="location">
+    <h2>Где мы работаем</h2>
+    <p class="placeholder">здесь будет текст — кто мы вообще, в каком кабинете/центре ведём приём, чтобы было понятно, кто приглашает на семинар</p>
+    <div class="location-card">
+      <div class="location-map">карта / превью локации</div>
+      <div class="location-info">
+        <div class="addr placeholder">здесь будет адрес кабинета</div>
+        <p class="placeholder" style="margin-bottom:0;">здесь будет текст — как добраться, ориентир</p>
+        <a href="#" class="location-link">Открыть в Google Картах →</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    здесь будет текст — контакты / соцсети
+  </footer>
+
+</div>
+
+</body>
+</html>
