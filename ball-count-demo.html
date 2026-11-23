@@ -119,8 +119,8 @@
   const MAX = 50;
   // Model: first look next to this page (your GitHub repo), then the public vosk-browser host.
   const MODEL_URLS = [
-    'vosk-model-small-ru-0.22.tar.gz',
-    'https://ccoreilly.github.io/vosk-browser/models/vosk-model-small-ru-0.22.tar.gz'
+    'vosk-model-small-ru-0.4.tar.gz',
+    'https://ccoreilly.github.io/vosk-browser/models/vosk-model-small-ru-0.4.tar.gz'
   ];
 
   const $ = id => document.getElementById(id);
@@ -314,7 +314,7 @@
       try {
         const r = await fetch(url, { method: 'HEAD' });
         if (!r.ok) continue;
-        $('load-text').textContent = 'Загружаю модель распознавания речи (около 45 МБ, только при первом запуске)…';
+        $('load-text').textContent = 'Загружаю модель распознавания речи (около 40 МБ, только при первом запуске)…';
         model = await Vosk.createModel(url);
         return model;
       } catch (e) { /* try next */ }
