@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Мяч и счёт</title>
+<script src="https://cdn.jsdelivr.net/npm/vosk-browser@0.0.8/dist/vosk.js"></script>
+<style>
+  :root{ --bg:#f6f4ef; --card:#fff; --ink:#23262b; --muted:#7a7f87; --accent:#3b6fd8;
+         --ok:#2e9e5b; --err:#d84a3b; --line:#e4e0d8; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg);color:var(--ink);min-height:100vh;display:flex;justify-content:center}
+  .wrap{width:100%;max-width:560px;padding:20px 14px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}
+  h1{font-size:22px;margin:0 0 6px} h2{font-size:18px;margin:0 0 12px}
+  p{line-height:1.5;margin:0 0 12px}
+  .muted{color:var(--muted);font-size:14px}
+  .hidden{display:none !important}
+  button{font:inherit;border:0;border-radius:12px;padding:14px 18px;font-size:17px;cursor:pointer;
+         background:var(--accent);color:#fff;width:100%}
+  button.secondary{background:#eceae4;color:var(--ink)}
+  button:disabled{opacity:.5;cursor:default}
+  .code-input{width:100%;padding:14px;font-size:18px;border:1px solid var(--line);border-radius:12px;
+              text-transform:uppercase;margin-bottom:12px;text-align:center;letter-spacing:2px;font-family:inherit}
+  .err-msg{color:var(--err);font-size:14px;min-height:20px;margin-bottom:8px}
+  ol{padding-left:20px;margin:0 0 14px} li{margin-bottom:6px;line-height:1.45}
+  .settings{border-top:1px solid var(--line);margin-top:16px;padding-top:14px}
+  .settings summary{cursor:pointer;color:var(--muted);font-size:14px}
+  .row{display:flex;justify-content:space-between;align-items:center;margin:10px 0;gap:12px;font-size:15px}
+  .row select,.row input{padding:8px;border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit;background:#fff}
+  .row input{width:70px;text-align:center}
+  .gap{height:12px}
+
+  .status{font-size:15px;color:var(--muted);text-align:center;min-height:22px}
+  .big{font-size:96px;font-weight:800;text-align:center;line-height:1;margin:18px 0 6px;font-variant-numeric:tabular-nums}
+  .big.ok{color:var(--ok)} .big.err{color:var(--err)}
+  .msg{min-height:52px;text-align:center;font-size:18px;font-weight:700;margin:8px 0 12px;line-height:1.35}
+  .msg.err{color:var(--err)} .msg.ok{color:var(--ok)}
+  .stats{display:flex;justify-content:space-around;text-align:center;border-top:1px solid var(--line);
+         border-bottom:1px solid var(--line);padding:12px 0;margin-bottom:14px}
+  .stats b{display:block;font-size:26px}
+  .stats span{font-size:13px;color:var(--muted)}
+  .debug{font-size:13px;color:var(--muted);text-align:center;min-height:18px;margin-bottom:12px;word-break:break-word}
+  .mic{display:inline-block;width:10px;height:10px;border-radius:50%;background:#ccc;margin-right:6px;vertical-align:middle}
+  .mic.on{background:var(--err);animation:blink 1.2s infinite}
+  @keyframes blink{50%{opacity:.35}}
+
+  table{width:100%;border-collapse:collapse;font-size:15px;margin:6px 0 16px}
+  td{padding:8px 4px;border-bottom:1px solid var(--line)}
+  td:last-child{text-align:right;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 1. Код доступа -->
+  <div id="scr-code" class="card">
+    <h1>Вход</h1>
+    <p class="muted">Введи код доступа</p>
+    <input id="code" class="code-input" autocomplete="off" placeholder="КОД">
+    <div id="code-err" class="err-msg"></div>
+    <button id="btn-code">Войти</button>
+  </div>
+
+  <!-- 2. Инструкция -->
+  <div id="scr-intro" class="card hidden">
+    <h1>Мяч и счёт</h1>
+    <p class="muted">Тренировка внимания и самоконтроля</p>
+    <ol id="instr"></ol>
+    <p class="muted">Нужен микрофон: когда браузер спросит разрешение, нажми «Разрешить». Голос распознаётся прямо на устройстве и никуда не отправляется. При первом запуске загрузка займёт немного времени.</p>
+    <button id="btn-start">Старт</button>
+
+    <details class="settings">
+      <summary>Настройки (для взрослого)</summary>
+      <div class="row"><span>Режим счёта</span>
+        <select id="set-mode"><option value="1" selected>1:1 (вслух 1, 3, 5…)</option><option value="2">2:2 (вслух 1, 2, 5, 6…)</option></select></div>
+      <div class="row"><span>Проверять ритм (только 1:1)</span>
+        <select id="set-rhythm"><option value="1" selected>да</option><option value="0">нет</option></select></div>
+      <div class="row"><span>Пауза, после которой серия считается законченной, сек</span>
+        <input id="set-pause" type="number" min="3" max="20" value="6"></div>
+    </details>
+  </div>
+
+  <!-- 3. Загрузка -->
+  <div id="scr-load" class="card hidden">
+    <h2>Подготовка</h2>
+    <p id="load-text">Загружаю распознавание речи…</p>
+    <div id="load-err" class="err-msg"></div>
+    <button id="btn-load-back" class="secondary hidden">Назад</button>
+  </div>
+
+  <!-- 4. Упражнение -->
+  <div id="scr-task" class="card hidden">
+    <div class="status"><span id="mic" class="mic"></span><span id="status">Слушаю. Начинай с «один»</span></div>
+    <div id="big" class="big">–</div>
+    <div id="msg" class="msg"></div>
+    <div class="stats">
+      <div><b id="st-best">0</b><span>лучшая серия</span></div>
+      <div><b id="st-series">0</b><span>попыток</span></div>
+      <div><b id="st-err">0</b><span>сбоев</span></div>
+    </div>
+    <div id="debug" class="debug"></div>
+    <button id="btn-stop" class="secondary">Закончить</button>
+  </div>
+
+  <!-- 5. Результат -->
+  <div id="scr-result" class="card hidden">
+    <h2 id="res-title">Готово! 👏</h2>
+    <table id="res-table"></table>
+    <button id="btn-again" class="secondary">Ещё раз</button>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const CODES = ['DEMO'];
+  const MAX = 50;
+  // Model: first look next to this page (your GitHub repo), then the public vosk-browser host.
+  const MODEL_URLS = [
+    'vosk-model-small-ru-0.22.tar.gz',
+    'https://ccoreilly.github.io/vosk-browser/models/vosk-model-small-ru-0.22.tar.gz'
+  ];
+
+  const $ = id => document.getElementById(id);
+  const SCREENS = ['scr-code','scr-intro','scr-load','scr-task','scr-result'];
+  const show = id => { SCREENS.forEach(s => $(s).classList.add('hidden')); $(id).classList.remove('hidden'); };
+
+  /* ---------- Access code ---------- */
+  function tryCode(){
+    const v = $('code').value.trim().toUpperCase();
+    if (CODES.includes(v)) { updateInstr(); show('scr-intro'); }
+    else { $('code-err').textContent = 'Неверный код'; }
+  }
+  $('btn-code').onclick = tryCode;
+  $('code').addEventListener('keydown', e => { if (e.key === 'Enter') tryCode(); });
+
+  /* ---------- Counting mode ---------- */
+  // Numbers said aloud: mode k → k aloud, k silent, …
+  const aloudList = k => { const a = []; for (let n = 1; n <= MAX; n++) if (Math.floor((n - 1) / k) % 2 === 0) a.push(n); return a; };
+
+  function updateInstr(){
+    const k = +$('set-mode').value;
+    const ex = aloudList(k).slice(0, 4).join(', ');
+    const rule = k === 1 ? 'один бросок считай вслух, следующий — про себя' : 'два броска считай вслух, два следующих — про себя';
+    $('instr').innerHTML =
+      '<li>Встань так, чтобы телефон или компьютер был рядом, на расстоянии 1–2 метров.</li>' +
+      '<li>Подбрасывай мяч и лови, считая каждый бросок: ' + rule + '. Вслух получится: ' + ex + '…</li>' +
+      '<li>Про себя считай по-настоящему, не пропуская: система следит за ритмом счёта.</li>' +
+      '<li>Если сбился(лась) или уронил(а) мяч — начни сначала со слова «один».</li>' +
+      '<li>Цель — досчитать до ' + MAX + '.</li>';
+  }
+  $('set-mode').onchange = updateInstr;
+
+  /* ---------- Number words ---------- */
+  const UNITS = {'один':1,'раз':1,'два':2,'три':3,'четыре':4,'пять':5,'шесть':6,'семь':7,'восемь':8,'девять':9};
+  const TEENS = {'десять':10,'одиннадцать':11,'двенадцать':12,'тринадцать':13,'четырнадцать':14,'пятнадцать':15,
+                 'шестнадцать':16,'семнадцать':17,'восемнадцать':18,'девятнадцать':19};
+  const TENS = {'двадцать':20,'тридцать':30,'сорок':40,'пятьдесят':50};
+  const UNIT_WORDS = ['один','два','три','четыре','пять','шесть','семь','восемь','девять'];
+
+  function grammar(){
+    const ph = ['раз'];
+    for (let n = 1; n <= MAX; n++) {
+      if (n < 10) ph.push(UNIT_WORDS[n - 1]);
+      else if (n < 20) ph.push(Object.keys(TEENS)[n - 10]);
+      else { const t = Object.keys(TENS)[Math.floor(n / 10) - 2]; ph.push(n % 10 ? t + ' ' + UNIT_WORDS[n % 10 - 1] : t); }
+    }
+    ph.push('[unk]');
+    return JSON.stringify(ph);
+  }
+
+  // words: [{word, conf}] → [{n, conf}]; holdTail: keep a trailing tens word unparsed (it may become "двадцать один")
+  function parse(words, holdTail){
+    const out = [];
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i].word, c = words[i].conf == null ? 1 : words[i].conf;
+      if (w in TENS) {
+        const nx = words[i + 1];
+        if (nx && nx.word in UNITS && nx.word !== 'раз') {
+          out.push({ n: TENS[w] + UNITS[nx.word], conf: Math.min(c, nx.conf == null ? 1 : nx.conf) }); i++;
+        } else if (!nx && holdTail) { break; }
+        else out.push({ n: TENS[w], conf: c });
+      } else if (w in TEENS) out.push({ n: TEENS[w], conf: c });
+      else if (w in UNITS) out.push({ n: UNITS[w], conf: c });
+    }
+    return out;
+  }
+
+  /* ---------- Sounds ---------- */
+  let sfx = null;
+  function tone(freq, start, dur, type, vol){
+    const t = sfx.currentTime + start;
+    const o = sfx.createOscillator(), g = sfx.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || 0.5, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(sfx.destination); o.start(t); o.stop(t + dur + 0.05);
+  }
+  const errorSound = () => { tone(220, 0, 0.22, 'square', 0.25); tone(160, 0.26, 0.35, 'square', 0.25); };
+  const winSound = () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.14, 0.3, 'sine', 0.5)); };
+
+  /* ---------- State ---------- */
+  let S = null, model = null, rec = null, micStream = null, micCtx = null, proc = null;
+
+  function newState(){
+    const k = +$('set-mode').value;
+    return {
+      k, aloud: aloudList(k),
+      rhythm: k === 1 && $('set-rhythm').value === '1',
+      pauseMs: Math.max(3, +$('set-pause').value || 6) * 1000,
+      idx: 0,               // position in aloud list we expect next
+      inSeries: false, times: [],
+      waitRestart: false,   // after an error: ignore numbers until "один"
+      best: 0, series: [], seqErr: 0, rhythmErr: 0,
+      utterDone: 0,         // numbers of the current utterance already handled
+      lastAt: 0, finished: false, t0: performance.now()
+    };
+  }
+  const expected = () => S.aloud[S.idx];
+  const reached = () => (S.idx > 0 ? S.aloud[S.idx - 1] : 0);
+
+  function setBig(text, cls){ const b = $('big'); b.textContent = text; b.className = 'big' + (cls ? ' ' + cls : ''); }
+  function setMsg(text, cls){ const m = $('msg'); m.textContent = text; m.className = 'msg' + (cls ? ' ' + cls : ''); }
+  function refreshStats(){
+    $('st-best').textContent = S.best;
+    $('st-series').textContent = S.series.length + (S.inSeries ? 1 : 0);
+    $('st-err').textContent = S.seqErr + S.rhythmErr;
+  }
+
+  function closeSeries(override){
+    if (!S.inSeries) return;
+    const r = override != null ? override : reached();
+    S.series.push(r);
+    S.best = Math.max(S.best, r);
+    S.inSeries = false; S.idx = 0; S.times = [];
+  }
+
+  function startSeries(now){
+    closeSeries();
+    S.inSeries = true; S.waitRestart = false; S.idx = 0; S.times = [];
+    accept(1, now);
+  }
+
+  function accept(n, now){
+    S.idx++; S.times.push(now); S.lastAt = now;
+    setBig(n, 'ok'); setMsg('');
+    $('status').textContent = 'Слушаю';
+    if (S.rhythm && S.times.length >= 5) {
+      const iv = []; for (let i = 1; i < S.times.length; i++) iv.push(S.times[i] - S.times[i - 1]);
+      const base = iv.slice(0, 3).sort((a, b) => a - b)[1];      // median of the first 3 intervals
+      if (iv[iv.length - 1] < base * 0.55) { S.idx--; fail('Слишком быстро — не пропускай счёт про себя', 'rhythm'); return; }
+    }
+    if (S.idx >= S.aloud.length) {               // reached 50 (in 1:1 the last aloud is 49, 50 is silent)
+      closeSeries(MAX);
+      setBig(MAX, 'ok'); setMsg('Цель достигнута! 🎉', 'ok'); winSound();
+      $('status').textContent = 'Можно начать заново со слова «один» или закончить';
+    }
+    refreshStats();
+  }
+
+  function fail(text, kind){
+    if (kind === 'rhythm') S.rhythmErr++; else S.seqErr++;
+    closeSeries();
+    S.waitRestart = true;
+    setBig('✕', 'err'); setMsg(text + '. Начни сначала со слова «один»', 'err');
+    $('status').textContent = 'Жду «один»';
+    errorSound(); refreshStats();
+  }
+
+  // one recognized number; decisive=false → from partial result (only matches are taken)
+  function handle(item, decisive){
+    const now = performance.now();
+    const n = item.n;
+    if (S.waitRestart || !S.inSeries) {
+      if (n === 1) { startSeries(now); return true; }
+      return decisive;                              // other numbers are ignored while waiting for "один"
+    }
+    if (n === expected()) { accept(n, now); return true; }
+    if (n === 1) { startSeries(now); return true; } // started over after a drop — not an error
+    if (!decisive) return false;                    // wait for the final result before calling it an error
+    if (item.conf < 0.6) return true;               // unsure recognition: ignore, don't punish
+    fail('Ожидалось ' + expected() + ', услышано ' + n, 'seq');
+    return true;
+  }
+
+  function onPartial(text){
+    if (!S || S.finished) return;
+    $('debug').textContent = text ? 'Слышу: ' + text : '';
+    const words = text.split(/\s+/).filter(Boolean).map(w => ({ word: w }));
+    const nums = parse(words, true);
+    while (S.utterDone < nums.length) {
+      if (!handle(nums[S.utterDone], false)) break;
+      S.utterDone++;
+    }
+  }
+
+  function onResult(result){
+    if (!S || S.finished) return;
+    const words = result.result || (result.text || '').split(/\s+/).filter(Boolean).map(w => ({ word: w, conf: 1 }));
+    if (result.text) $('debug').textContent = 'Слышу: ' + result.text;
+    const nums = parse(words, false);
+    for (let i = S.utterDone; i < nums.length; i++) handle(nums[i], true);
+    S.utterDone = 0;
+  }
+
+  /* ---------- Engine ---------- */
+  async function loadModel(){
+    if (model) return model;
+    if (!window.Vosk) throw new Error('Не загрузилась библиотека распознавания (нужен интернет при первом запуске).');
+    for (const url of MODEL_URLS) {
+      try {
+        const r = await fetch(url, { method: 'HEAD' });
+        if (!r.ok) continue;
+        $('load-text').textContent = 'Загружаю модель распознавания речи (около 45 МБ, только при первом запуске)…';
+        model = await Vosk.createModel(url);
+        return model;
+      } catch (e) { /* try next */ }
+    }
+    throw new Error('Не удалось загрузить модель распознавания речи.');
+  }
+
+  async function start(){
+    sfx = sfx || new (window.AudioContext || window.webkitAudioContext)();
+    if (sfx.state === 'suspended') sfx.resume();
+    show('scr-load'); $('load-err').textContent = ''; $('btn-load-back').classList.add('hidden');
+    $('load-text').textContent = 'Загружаю распознавание речи…';
+    try {
+      await loadModel();
+      $('load-text').textContent = 'Включаю микрофон…';
+      micStream = await navigator.mediaDevices.getUserMedia({ video: false,
+        audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
+      micCtx = new (window.AudioContext || window.webkitAudioContext)();
+      rec = new model.KaldiRecognizer(micCtx.sampleRate, grammar());
+      rec.setWords(true);
+      rec.on('result', m => onResult(m.result));
+      rec.on('partialresult', m => onPartial(m.result.partial || ''));
+      const src = micCtx.createMediaStreamSource(micStream);
+      proc = micCtx.createScriptProcessor(4096, 1, 1);
+      proc.onaudioprocess = e => { try { rec.acceptWaveform(e.inputBuffer); } catch (err) {} };
+      src.connect(proc); proc.connect(micCtx.destination);
+    } catch (e) {
+      const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+      $('load-err').textContent = denied ? 'Нет доступа к микрофону. Разреши доступ в настройках браузера и попробуй снова.' : (e.message || String(e));
+      $('btn-load-back').classList.remove('hidden');
+      stopAudio();
+      return;
+    }
+    S = newState();
+    setBig('–'); setMsg(''); $('debug').textContent = '';
+    $('status').textContent = 'Слушаю. Начинай с «один»';
+    $('mic').classList.add('on');
+    refreshStats();
+    show('scr-task');
+    S.clock = setInterval(() => {
+      if (S.inSeries && performance.now() - S.lastAt > S.pauseMs) {
+        closeSeries(); refreshStats();
+        setMsg('Пауза — серия закончена. Начни снова со слова «один»');
+        $('status').textContent = 'Жду «один»';
+      }
+    }, 300);
+  }
+  $('btn-start').onclick = start;
+  $('btn-load-back').onclick = () => show('scr-intro');
+
+  function stopAudio(){
+    try { if (proc) proc.disconnect(); } catch (e) {}
+    try { if (micStream) micStream.getTracks().forEach(t => t.stop()); } catch (e) {}
+    try { if (micCtx) micCtx.close(); } catch (e) {}
+    try { if (rec && rec.remove) rec.remove(); } catch (e) {}
+    proc = null; micStream = null; micCtx = null; rec = null;
+    $('mic').classList.remove('on');
+  }
+
+  function finish(){
+    if (!S || S.finished) return;
+    S.finished = true; clearInterval(S.clock);
+    closeSeries(); stopAudio();
+    const rows = [
+      ['Режим', S.k + ':' + S.k],
+      ['Лучшая серия (до какого числа)', S.best + ' из ' + MAX],
+      ['Попыток', S.series.length],
+      ['Сбоев в последовательности', S.seqErr]
+    ];
+    if (S.rhythm) rows.push(['Сбоев ритма (слишком быстро)', S.rhythmErr]);
+    rows.push(['Время', (() => { const s = Math.round((performance.now() - S.t0) / 1000); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); })()]);
+    $('res-table').innerHTML = rows.map(r => '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>').join('');
+    $('res-title').textContent = S.best >= MAX ? 'Цель достигнута! 🎉' : 'Готово! 👏';
+    show('scr-result');
+  }
+  $('btn-stop').onclick = finish;
+  $('btn-again').onclick = () => { updateInstr(); show('scr-intro'); };
+
+  // test hook (no effect in normal use)
+  window.__ballTest = { onPartial: t => onPartial(t), onResult: r => onResult(r), state: () => S, parse };
+})();
+</script>
+</body>
+</html>
