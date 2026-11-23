@@ -46,6 +46,9 @@
   .mic.on{background:var(--err);animation:blink 1.2s infinite}
   @keyframes blink{50%{opacity:.35}}
 
+  .clap{text-align:center;font-size:30px;height:38px;opacity:0;transition:opacity .4s;margin-top:-6px}
+  .clap.on{opacity:1;transition:none}
+  .level-note{background:#eef4ff;border-radius:12px;padding:12px 14px;font-size:16px;line-height:1.4;margin:0 0 16px}
   .final{font-size:20px;font-weight:700;line-height:1.4;margin:0 0 16px}
   table{width:100%;border-collapse:collapse;font-size:15px;margin:6px 0 16px}
   td{padding:8px 4px;border-bottom:1px solid var(--line)}
@@ -67,22 +70,11 @@
   <!-- 2. Инструкция -->
   <div id="scr-intro" class="card hidden">
     <h1>Мяч и счёт</h1>
-    <p class="muted">Тренировка внимания и самоконтроля</p>
+    <p class="muted" id="level-line">Тренировка внимания и самоконтроля</p>
     <ol id="instr"></ol>
     <p class="muted">Нужен микрофон: когда браузер спросит разрешение, нажми «Разрешить». Голос распознаётся прямо на устройстве и никуда не отправляется. При первом запуске загрузка займёт немного времени.</p>
     <button id="btn-start">Старт</button>
 
-    <details class="settings">
-      <summary>Настройки (для взрослого)</summary>
-      <div class="row"><span>Режим счёта</span>
-        <select id="set-mode"><option value="1" selected>1:1 (вслух 1, 3, 5…)</option><option value="2">2:2 (вслух 1, 2, 5, 6…)</option></select></div>
-      <div class="row"><span>Проверять ритм (только 1:1)</span>
-        <select id="set-rhythm"><option value="1" selected>да</option><option value="0">нет</option></select></div>
-      <div class="row"><span>Пауза, после которой серия считается законченной, сек</span>
-        <input id="set-pause" type="number" min="3" max="20" value="6"></div>
-      <div class="row"><span>Время упражнения, мин (после него — завершение при следующем сбое)</span>
-        <input id="set-dur" type="number" min="1" max="30" value="5"></div>
-    </details>
   </div>
 
   <!-- 3. Загрузка -->
@@ -103,6 +95,7 @@
       <div><b id="st-series">0</b><span>попыток</span></div>
       <div><b id="st-err">0</b><span>сбоев</span></div>
     </div>
+    <div id="clap" class="clap">👏</div>
     <div id="debug" class="debug"></div>
     <button id="btn-stop" class="secondary">Закончить</button>
   </div>
@@ -111,6 +104,7 @@
   <div id="scr-result" class="card hidden">
     <h2 id="res-title">Готово! 👏</h2>
     <p id="res-final" class="final hidden"></p>
+    <p id="res-level" class="level-note hidden"></p>
     <table id="res-table"></table>
     <button id="btn-again" class="secondary">Ещё раз</button>
   </div>
@@ -121,6 +115,64 @@
 (function(){
   const CODES = ['DEMO'];
   const MAX = 50;
+  // Common parameters
+  const BASE = {
+    rhythmCheck: true, // only used in 1:1
+    pauseSec: 6,       // silence after which a series counts as ended (ball dropped)
+    durationMin: 5     // after this, the exercise ends at the next failure
+  };
+  // Levels: add a new step by appending an object. mode 1 → 1:1, mode 2 → 2:2.
+  // clap: 'listen' — clap on the silent count is detected and counted, but a missed clap is not an error.
+  const LEVELS = [
+    { mode: 1, clap: null },
+    { mode: 1, clap: 'listen' }
+  ];
+  // Level-up rule: reached 50 in this many lessons (days with the exercise) in a row
+  const LEVEL_UP_LESSONS = 2;
+  const STORE_KEY = 'ballcount_v1_';
+
+  /* ---------- Progress (kept on this device) ---------- */
+  let USER = 'DEMO', P = null, CONFIG = null, LEVEL_TEST = null;
+  const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+  function loadProgress(){
+    let p = null;
+    try { p = JSON.parse(localStorage.getItem(STORE_KEY + USER)); } catch (e) {}
+    p = p || { level: 0, days: [] };       // days: [{date, level, reached50}]
+    // apply a level-up earned on an earlier day
+    if (p.nextLevel != null && p.nextFrom && today() >= p.nextFrom) { p.level = p.nextLevel; delete p.nextLevel; delete p.nextFrom; }
+    p.level = Math.min(p.level, LEVELS.length - 1);
+    P = p;
+    // ?level=2 in the address opens that level for testing (progress is not saved)
+    const q = new URLSearchParams(location.search).get('level');
+    LEVEL_TEST = q && LEVELS[+q - 1] ? +q - 1 : null;
+    const li = LEVEL_TEST != null ? LEVEL_TEST : P.level;
+    CONFIG = Object.assign({}, BASE, LEVELS[li], { levelIndex: li });
+  }
+  function saveProgress(){ if (LEVEL_TEST != null) return; try { localStorage.setItem(STORE_KEY + USER, JSON.stringify(P)); } catch (e) {} }
+
+  // returns a note for the final screen
+  function recordLesson(best){
+    if (LEVEL_TEST != null) return 'Тестовый запуск уровня ' + (LEVEL_TEST + 1) + ' — прогресс не сохраняется.';
+    const d = today();
+    let rec = P.days.find(x => x.date === d && x.level === P.level);
+    if (!rec) { rec = { date: d, level: P.level, reached50: false }; P.days.push(rec); }
+    rec.reached50 = rec.reached50 || best >= MAX;
+    const mine = P.days.filter(x => x.level === P.level);
+    let streak = 0;
+    for (let i = mine.length - 1; i >= 0 && mine[i].reached50; i--) streak++;
+    let note = '';
+    if (P.nextLevel != null) note = 'В следующий раз тебя ждёт новое задание!';
+    else if (streak >= LEVEL_UP_LESSONS && P.level < LEVELS.length - 1) {
+      P.nextLevel = P.level + 1; P.nextFrom = tomorrow();
+      note = 'Ты дошёл(ла) до ' + MAX + ' в ' + LEVEL_UP_LESSONS + ' занятиях подряд. В следующий раз тебя ждёт новое задание!';
+    } else if (rec.reached50 && P.level < LEVELS.length - 1) {
+      const left = LEVEL_UP_LESSONS - streak;
+      note = 'Сегодня ты дошёл(ла) до ' + MAX + '! Ещё ' + left + ' ' + (left === 1 ? 'такое занятие' : 'таких занятия') + ' — и откроется новое задание.';
+    }
+    saveProgress();
+    return note;
+  }
+  function tomorrow(){ const d = new Date(); d.setDate(d.getDate() + 1); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
   // Model: first look next to this page (your GitHub repo), then the public vosk-browser host.
   const MODEL_URLS = [
     'vosk-model-small-ru-0.4.tar.gz',
@@ -134,7 +186,7 @@
   /* ---------- Access code ---------- */
   function tryCode(){
     const v = $('code').value.trim().toUpperCase();
-    if (CODES.includes(v)) { updateInstr(); show('scr-intro'); }
+    if (CODES.includes(v)) { USER = v; loadProgress(); updateInstr(); show('scr-intro'); }
     else { $('code-err').textContent = 'Неверный код'; }
   }
   $('btn-code').onclick = tryCode;
@@ -145,17 +197,18 @@
   const aloudList = k => { const a = []; for (let n = 1; n <= MAX; n++) if (Math.floor((n - 1) / k) % 2 === 0) a.push(n); return a; };
 
   function updateInstr(){
-    const k = +$('set-mode').value;
+    const k = CONFIG.mode;
     const ex = aloudList(k).slice(0, 4).join(', ');
-    const rule = k === 1 ? 'один бросок считай вслух, следующий — про себя' : 'два броска считай вслух, два следующих — про себя';
+    const rule = (k === 1 ? 'один бросок считай вслух, следующий — про себя' : 'два броска считай вслух, два следующих — про себя')
+      + (CONFIG.clap ? ', а на счёт про себя хлопни в ладоши' : '');
+    $('level-line').textContent = 'Уровень ' + (CONFIG.levelIndex + 1) + (LEVEL_TEST != null ? ' (тестовый запуск)' : '');
     $('instr').innerHTML =
       '<li>Встань так, чтобы телефон или компьютер был рядом, на расстоянии 1–2 метров.</li>' +
       '<li>Подбрасывай мяч и лови, считая каждый бросок: ' + rule + '. Вслух получится: ' + ex + '…</li>' +
-      '<li>Про себя считай по-настоящему, не пропуская: система следит за ритмом счёта.</li>' +
+      '<li>Про себя считай по-настоящему, не пропуская: система следит за ритмом счёта' + (CONFIG.clap ? ' и слушает хлопки' : '') + '.</li>' +
       '<li>Если сбился(лась) или уронил(а) мяч — начни сначала со слова «один».</li>' +
       '<li>Цель — досчитать до ' + MAX + '.</li>';
   }
-  $('set-mode').onchange = updateInstr;
 
   /* ---------- Number words ---------- */
   const UNITS = {'один':1,'раз':1,'два':2,'три':3,'четыре':4,'пять':5,'шесть':6,'семь':7,'восемь':8,'девять':9};
@@ -210,18 +263,19 @@
   let S = null, model = null, rec = null, micStream = null, micCtx = null, proc = null;
 
   function newState(){
-    const k = +$('set-mode').value;
+    const k = CONFIG.mode;
     return {
       k, aloud: aloudList(k),
-      rhythm: k === 1 && $('set-rhythm').value === '1',
-      pauseMs: Math.max(3, +$('set-pause').value || 6) * 1000,
-      durMs: Math.max(1, +$('set-dur').value || 5) * 60000,
+      rhythm: k === 1 && CONFIG.rhythmCheck,
+      pauseMs: CONFIG.pauseSec * 1000,
+      durMs: CONFIG.durationMin * 60000,
       idx: 0,               // position in aloud list we expect next
       inSeries: false, times: [],
       waitRestart: false,   // after an error: ignore numbers until "один"
       best: 0, series: [], seqErr: 0, rhythmErr: 0,
       utterDone: 0,         // numbers of the current utterance already handled
-      lastAt: 0, finished: false, t0: performance.now()
+      lastAt: 0, finished: false, t0: performance.now(),
+      clapTimes: [], gaps: 0, gapsWithClap: 0
     };
   }
   const expected = () => S.aloud[S.idx];
@@ -251,6 +305,11 @@
   }
 
   function accept(n, now){
+    if (CONFIG.clap && S.times.length) {
+      const prev = S.times[S.times.length - 1];
+      S.gaps++;
+      if (S.clapTimes.some(t => t > prev - 200 && t < now)) S.gapsWithClap++;
+    }
     S.idx++; S.times.push(now); S.lastAt = now;
     setBig(n, 'ok'); setMsg('');
     $('status').textContent = 'Слушаю';
@@ -343,8 +402,10 @@
     try {
       await loadModel();
       $('load-text').textContent = 'Включаю микрофон…';
+      // for clap levels the browser's noise suppression is switched off, it can swallow claps
+      const clean = !!CONFIG.clap;
       micStream = await navigator.mediaDevices.getUserMedia({ video: false,
-        audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
+        audio: { echoCancellation: !clean, noiseSuppression: !clean, autoGainControl: !clean, channelCount: 1 } });
       micCtx = new (window.AudioContext || window.webkitAudioContext)();
       rec = new model.KaldiRecognizer(micCtx.sampleRate, grammar());
       rec.setWords(true);
@@ -352,7 +413,10 @@
       rec.on('partialresult', m => onPartial(m.result.partial || ''));
       const src = micCtx.createMediaStreamSource(micStream);
       proc = micCtx.createScriptProcessor(4096, 1, 1);
-      proc.onaudioprocess = e => { try { rec.acceptWaveform(e.inputBuffer); } catch (err) {} };
+      proc.onaudioprocess = e => {
+        try { rec.acceptWaveform(e.inputBuffer); } catch (err) {}
+        if (CONFIG.clap) detectClaps(e.inputBuffer);
+      };
       src.connect(proc); proc.connect(micCtx.destination);
     } catch (e) {
       const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
@@ -377,6 +441,29 @@
   }
   $('btn-start').onclick = start;
   $('btn-load-back').onclick = () => show('scr-intro');
+
+  /* Clap = a very sharp, loud onset: energy of a ~5 ms frame jumps far above the frames just before it */
+  let hist = [], lastClap = 0, clapFlashT = null;
+  function detectClaps(buf){
+    if (!S || S.finished) return;
+    const x = buf.getChannelData(0), F = 256, sr = buf.sampleRate;
+    const tEnd = performance.now();
+    for (let i = 0; i + F <= x.length; i += F) {
+      let e = 0, pk = 0;
+      for (let j = i; j < i + F; j++) { const v = x[j]; e += v * v; if (v > pk) pk = v; else if (-v > pk) pk = -v; }
+      e /= F;
+      const before = hist.length ? hist.reduce((a, b) => a + b, 0) / hist.length : e;
+      const t = tEnd - (x.length - i) / sr * 1000;
+      if (pk > 0.25 && e > before * 20 && t - lastClap > 250) { lastClap = t; onClap(t); }
+      hist.push(e); if (hist.length > 6) hist.shift();
+    }
+  }
+  function onClap(t){
+    S.clapTimes.push(t);
+    if (S.clapTimes.length > 50) S.clapTimes.shift();
+    const c = $('clap'); c.classList.add('on');
+    clearTimeout(clapFlashT); clapFlashT = setTimeout(() => c.classList.remove('on'), 350);
+  }
 
   function stopAudio(){
     try { if (proc) proc.disconnect(); } catch (e) {}
@@ -404,8 +491,12 @@
       ['Сбоев в последовательности', S.seqErr]
     ];
     if (S.rhythm) rows.push(['Сбоев ритма (слишком быстро)', S.rhythmErr]);
+    if (CONFIG.clap) rows.push(['Хлопок услышан в паузах', S.gaps ? S.gapsWithClap + ' из ' + S.gaps : '—']);
+    rows.unshift(['Уровень', CONFIG.levelIndex + 1]);
     rows.push(['Время', (() => { const s = Math.round((performance.now() - S.t0) / 1000); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); })()]);
     $('res-table').innerHTML = rows.map(r => '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>').join('');
+    const note = recordLesson(S.best);
+    const ln = $('res-level'); ln.textContent = note; ln.classList.toggle('hidden', !note);
     const fin = $('res-final');
     if (byTime === true) {
       $('res-title').textContent = 'На сегодня достаточно! 👏';
@@ -418,10 +509,10 @@
     show('scr-result');
   }
   $('btn-stop').onclick = () => finish(false);
-  $('btn-again').onclick = () => { updateInstr(); show('scr-intro'); };
+  $('btn-again').onclick = () => { loadProgress(); updateInstr(); show('scr-intro'); };
 
   // test hook (no effect in normal use)
-  window.__ballTest = { onPartial: t => onPartial(t), onResult: r => onResult(r), state: () => S, parse };
+  window.__ballTest = { onPartial: t => onPartial(t), onResult: r => onResult(r), state: () => S, parse, detectClaps: b => detectClaps(b) };
 })();
 </script>
 </body>
