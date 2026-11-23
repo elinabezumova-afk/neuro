@@ -46,6 +46,7 @@
   .mic.on{background:var(--err);animation:blink 1.2s infinite}
   @keyframes blink{50%{opacity:.35}}
 
+  .final{font-size:20px;font-weight:700;line-height:1.4;margin:0 0 16px}
   table{width:100%;border-collapse:collapse;font-size:15px;margin:6px 0 16px}
   td{padding:8px 4px;border-bottom:1px solid var(--line)}
   td:last-child{text-align:right;font-weight:600}
@@ -79,6 +80,8 @@
         <select id="set-rhythm"><option value="1" selected>да</option><option value="0">нет</option></select></div>
       <div class="row"><span>Пауза, после которой серия считается законченной, сек</span>
         <input id="set-pause" type="number" min="3" max="20" value="6"></div>
+      <div class="row"><span>Время упражнения, мин (после него — завершение при следующем сбое)</span>
+        <input id="set-dur" type="number" min="1" max="30" value="5"></div>
     </details>
   </div>
 
@@ -107,6 +110,7 @@
   <!-- 5. Результат -->
   <div id="scr-result" class="card hidden">
     <h2 id="res-title">Готово! 👏</h2>
+    <p id="res-final" class="final hidden"></p>
     <table id="res-table"></table>
     <button id="btn-again" class="secondary">Ещё раз</button>
   </div>
@@ -211,6 +215,7 @@
       k, aloud: aloudList(k),
       rhythm: k === 1 && $('set-rhythm').value === '1',
       pauseMs: Math.max(3, +$('set-pause').value || 6) * 1000,
+      durMs: Math.max(1, +$('set-dur').value || 5) * 60000,
       idx: 0,               // position in aloud list we expect next
       inSeries: false, times: [],
       waitRestart: false,   // after an error: ignore numbers until "один"
@@ -236,6 +241,7 @@
     S.series.push(r);
     S.best = Math.max(S.best, r);
     S.inSeries = false; S.idx = 0; S.times = [];
+    if (!S.finished && performance.now() - S.t0 >= S.durMs) setTimeout(() => finish(true), 1500);
   }
 
   function startSeries(now){
@@ -251,7 +257,12 @@
     if (S.rhythm && S.times.length >= 5) {
       const iv = []; for (let i = 1; i < S.times.length; i++) iv.push(S.times[i] - S.times[i - 1]);
       const base = iv.slice(0, 3).sort((a, b) => a - b)[1];      // median of the first 3 intervals
-      if (iv[iv.length - 1] < base * 0.55) { S.idx--; fail('Слишком быстро — не пропускай счёт про себя', 'rhythm'); return; }
+      if (iv[iv.length - 1] < base * 0.55) {
+        S.idx--;
+        const last = reached();
+        fail('Слишком быстро — похоже, пропущен счёт про себя. Последний верный ответ был ' + last + ' (' + howSaid(last) + ')', 'rhythm', last);
+        return;
+      }
     }
     if (S.idx >= S.aloud.length) {               // reached 50 (in 1:1 the last aloud is 49, 50 is silent)
       closeSeries(MAX);
@@ -261,12 +272,13 @@
     refreshStats();
   }
 
-  function fail(text, kind){
+  const howSaid = n => S.aloud.includes(n) ? 'вслух' : 'про себя';
+  function fail(text, kind, lastCorrect){
     if (kind === 'rhythm') S.rhythmErr++; else S.seqErr++;
-    closeSeries();
+    closeSeries(lastCorrect);
     S.waitRestart = true;
-    setBig('✕', 'err'); setMsg(text + '. Начни сначала со слова «один»', 'err');
-    $('status').textContent = 'Жду «один»';
+    setBig('✕', 'err'); setMsg(text, 'err');
+    $('status').textContent = 'Начни сначала со слова «один»';
     errorSound(); refreshStats();
   }
 
@@ -282,7 +294,8 @@
     if (n === 1) { startSeries(now); return true; } // started over after a drop — not an error
     if (!decisive) return false;                    // wait for the final result before calling it an error
     if (item.conf < 0.6) return true;               // unsure recognition: ignore, don't punish
-    fail('Ожидалось ' + expected() + ', услышано ' + n, 'seq');
+    const last = expected() - 1;   // the number right before the expected one (in 1:1 — the silent one)
+    fail('Ответ неверный. Последний верный ответ был ' + last + ' (' + howSaid(last) + ')', 'seq', last);
     return true;
   }
 
@@ -374,7 +387,13 @@
     $('mic').classList.remove('on');
   }
 
-  function finish(){
+  function throwsWord(n){
+    const a = n % 10, b = n % 100;
+    if (a === 1 && b !== 11) return 'бросок';
+    if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return 'броска';
+    return 'бросков';
+  }
+  function finish(byTime){
     if (!S || S.finished) return;
     S.finished = true; clearInterval(S.clock);
     closeSeries(); stopAudio();
@@ -387,10 +406,18 @@
     if (S.rhythm) rows.push(['Сбоев ритма (слишком быстро)', S.rhythmErr]);
     rows.push(['Время', (() => { const s = Math.round((performance.now() - S.t0) / 1000); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); })()]);
     $('res-table').innerHTML = rows.map(r => '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>').join('');
-    $('res-title').textContent = S.best >= MAX ? 'Цель достигнута! 🎉' : 'Готово! 👏';
+    const fin = $('res-final');
+    if (byTime === true) {
+      $('res-title').textContent = 'На сегодня достаточно! 👏';
+      fin.textContent = 'Ты молодец. Твой рекорд на сегодня — ' + S.best + ' ' + throwsWord(S.best) + ' подряд без ошибок!';
+      fin.classList.remove('hidden');
+    } else {
+      $('res-title').textContent = S.best >= MAX ? 'Цель достигнута! 🎉' : 'Готово! 👏';
+      fin.classList.add('hidden');
+    }
     show('scr-result');
   }
-  $('btn-stop').onclick = finish;
+  $('btn-stop').onclick = () => finish(false);
   $('btn-again').onclick = () => { updateInstr(); show('scr-intro'); };
 
   // test hook (no effect in normal use)
